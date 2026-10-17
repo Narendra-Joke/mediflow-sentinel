@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -6,6 +7,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
+from src.audit import AuditLogger
 from src.inventory import Inventory
 
 app = FastAPI(
@@ -43,7 +45,29 @@ def health_check():
 @app.post("/inventory/assess")
 def assess_inventory(payload: InventoryRequest):
     inventory = Inventory(**payload.model_dump())
-    return inventory.assess_risk()
+    result = inventory.assess_risk()
+
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "MANUAL_ASSESSMENT",
+        "facility_id": payload.facility_id,
+        "medicine": payload.medicine,
+        "current_stock": payload.stock,
+        "incoming_stock": payload.incoming_stock,
+        "delivery_days_remaining": (
+            payload.delivery_delay_days
+            if payload.incoming_stock > 0
+            else None
+        ),
+        "days_until_stockout": result["days_until_stockout"],
+        "projected_days_until_stockout": (
+            result["projected_days_until_stockout"]
+        ),
+        "risk": result["risk"],
+    }
+    AuditLogger(AUDIT_LOG_PATH).record(event)
+
+    return result
 
 
 def read_audit_events() -> list[dict[str, Any]]:
