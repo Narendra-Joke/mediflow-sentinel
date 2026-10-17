@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from src.inventory import Inventory
-from src.audit import AuditLogger
+from src.audit import AuditLogger, RiskTransitionTracker
 
 
 def make_event(tick, event_type, quantity, inventory, pending_delivery):
@@ -40,9 +40,22 @@ def make_event(tick, event_type, quantity, inventory, pending_delivery):
     }
 
 
+
+def record_event(event, audit, tracker):
+    """Persist and print events, including risk transitions."""
+    audit.record(event)
+    print(json.dumps(event), flush=True)
+
+    transition = tracker.observe(event)
+    if transition is not None:
+        audit.record(transition)
+        print(json.dumps(transition), flush=True)
+
+
 def main():
     random.seed(42)
     audit = AuditLogger()
+    tracker = RiskTransitionTracker()
 
     inventory = Inventory(
         facility_id="CLINIC-A",
@@ -81,8 +94,7 @@ def main():
                         inventory,
                         pending_delivery,
                     )
-                    audit.record(event)
-                    print(json.dumps(event), flush=True)
+                    record_event(event, audit, tracker)
 
             # Dispense medicine for this simulated day.
             quantity = min(
@@ -103,8 +115,7 @@ def main():
                 inventory,
                 pending_delivery,
             )
-            audit.record(event)
-            print(json.dumps(event), flush=True)
+            record_event(event, audit, tracker)
 
             # Schedule a new delivery only if no shipment is pending.
             if (
@@ -123,8 +134,7 @@ def main():
                     inventory,
                     pending_delivery,
                 )
-                audit.record(event)
-                print(json.dumps(event), flush=True)
+                record_event(event, audit, tracker)
 
             time.sleep(2)
 
