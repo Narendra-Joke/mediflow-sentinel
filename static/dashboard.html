@@ -474,7 +474,7 @@ $("assessmentForm").addEventListener("submit", async (event) => {
           ${formatNumber(projectedDays)} days
         </div>
 
-        <p><strong>Risk explanation</strong></p>
+        <p><strong>Rule-based risk explanation</strong></p>
         <p>${escapeHtml(data.risk_reason)}</p>
 
         <p><strong>Recommended action</strong></p>
@@ -483,8 +483,60 @@ $("assessmentForm").addEventListener("submit", async (event) => {
         <div class="event-detail">
           Assessed at: ${formatTime(data.assessed_at)}
         </div>
+        <p><strong>AI-generated explanation (Granite)</strong></p>
+        <p id="genaiExplanation" class="muted" aria-live="polite">
+          Preparing AI explanation...
+        </p>
+
       </div>
     `;
+
+    // GenAI is supplemental: never replace or alter the structured assessment.
+    const aiBox = $("genaiExplanation");
+    try {
+      const jobResponse = await fetch("/genai/explanations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessment: data })
+      });
+      if (!jobResponse.ok) {
+        throw new Error(`Could not start explanation (HTTP ${jobResponse.status})`);
+      }
+
+      const job = await jobResponse.json();
+      const deadline = Date.now() + 5 * 60 * 1000;
+      let finished = false;
+
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        const statusResponse = await fetch(
+          `/genai/explanations/${encodeURIComponent(job.job_id)}`,
+          { cache: "no-store" }
+        );
+        if (!statusResponse.ok) {
+          throw new Error(`Could not retrieve explanation (HTTP ${statusResponse.status})`);
+        }
+
+        const status = await statusResponse.json();
+        if (status.status === "completed") {
+          aiBox.textContent = status.answer || "No explanation was returned.";
+          aiBox.className = "";
+          finished = true;
+          break;
+        }
+        if (status.status === "failed") {
+          throw new Error(status.error || "The explanation job failed.");
+        }
+        aiBox.textContent = "Granite is generating the explanation. This may take a few minutes...";
+      }
+
+      if (!finished) {
+        aiBox.textContent = "The AI explanation is taking longer than expected. The inventory assessment above is available.";
+      }
+    } catch (aiError) {
+      aiBox.textContent = `AI explanation unavailable: ${aiError.message}. The inventory assessment above is still valid.`;
+      aiBox.className = "muted";
+    }
   } catch (error) {
     message.textContent = `Assessment failed: ${error.message}`;
     message.className = "error";

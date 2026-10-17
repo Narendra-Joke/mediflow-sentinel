@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 import traceback
 from pathlib import Path
@@ -67,15 +68,18 @@ def main() -> None:
                     {
                         "role": "system",
                         "content": (
-                            "You are Mediflow Sentinel. Explain medicine inventory risk "
-                            "using only supplied data. Write exactly 3 short "
-                            "sentences: (1) current stock and estimated days "
-                            "until stockout, (2) risk level and prediction "
-                            "probability if supplied, (3) one practical "
-                            "inventory action. End by stating that predictions "
-                            "are experimental and not clinically validated. "
-                            "Do not diagnose patients or recommend treatment. "
-                            "Keep the entire answer under 80 words."
+                            "You are Mediflow Sentinel. Explain the supplied "
+                            "inventory assessment using only its exact values. "
+                            "Never calculate, guess, or change any number, "
+                            "probability, risk level, or stockout timeline. "
+                            "If a value is missing, do not invent it. "
+                            "Write exactly 3 short sentences: (1) stock and "
+                            "estimated days until stockout, (2) supplied risk "
+                            "level and probability, if present, (3) one practical "
+                            "inventory action consistent with the assessment. "
+                            "End by stating predictions are experimental and "
+                            "not clinically validated. Do not diagnose patients "
+                            "or recommend treatment. Keep under 80 words."
                         ),
                     },
                     {
@@ -91,6 +95,109 @@ def main() -> None:
             )
 
             answer = response["choices"][0]["message"]["content"].strip()
+
+            # Keep structured assessment values authoritative.
+            def fmt(value):
+                if isinstance(value, float) and value.is_integer():
+                    return str(int(value))
+                return str(value)
+
+            stock = assessment.get("stock")
+            usage = assessment.get("daily_usage")
+            days = assessment.get(
+                "projected_days_until_stockout",
+                assessment.get("days_until_stockout"),
+            )
+            risk = assessment.get("risk")
+            probability = assessment.get("predicted_stockout_probability_7_days")
+            action = assessment.get("recommended_action")
+            facility = assessment.get("facility_id", "the facility")
+            medicine = assessment.get("medicine", "medicine")
+
+            probability_text = (
+                f"{probability * 100:.2f}%"
+                if isinstance(probability, (int, float))
+                else None
+            )
+
+            # Normalize decimal probability to a human-readable percentage.
+            if probability_text:
+                raw_probability = fmt(probability)
+                answer = re.sub(
+                    rf"\b{re.escape(raw_probability)}\s*"
+                    rf"\(\s*{re.escape(probability_text)}\s*\)",
+                    probability_text,
+                    answer,
+                )
+                answer = re.sub(
+                    rf"\b{re.escape(raw_probability)}\b",
+                    probability_text,
+                    answer,
+                )
+
+            # Reject contradictory numbers or missing required facts.
+            allowed_numbers = {
+                float(value)
+                for value in assessment.values()
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+            }
+            allowed_numbers.add(7.0)
+
+            found_numbers = re.findall(
+                r"(?<![A-Za-z])\d+(?:\.\d+)?%?", answer
+            )
+            numbers_valid = all(
+                float(token.rstrip("%")) in allowed_numbers
+                or (
+                    probability_text is not None
+                    and token == probability_text
+                )
+                for token in found_numbers
+            )
+
+            sentence_count = len(
+                re.split(r"(?<=[.!?])\s+", answer.strip())
+            )
+            required_facts = [
+                fmt(stock) if stock is not None else None,
+                fmt(usage) if usage is not None else None,
+                fmt(days) if days is not None else None,
+                str(risk) if risk is not None else None,
+                probability_text,
+                str(action).rstrip(".") if action else None,
+                "not clinically validated",
+            ]
+            facts_valid = all(
+                fact is None or fact.lower() in answer.lower()
+                for fact in required_facts
+            )
+
+            if not numbers_valid or not facts_valid or sentence_count != 3:
+                # Safe deterministic fallback: never let the model alter facts.
+                sentence1 = (
+                    f"{medicine} at {facility} has {fmt(stock)} units in stock"
+                    f" and daily usage is {fmt(usage)} units, with an estimated"
+                    f" {fmt(days)} days until stockout."
+                )
+                sentence2 = (
+                    f"Risk is {risk}"
+                    + (
+                        f", with a {probability_text} probability of stockout "
+                        "within 7 days."
+                        if probability_text
+                        else "."
+                    )
+                )
+                sentence3 = (
+                    f"Recommended action: {str(action).rstrip('.')} "
+                    "Predictions are experimental and not clinically validated."
+                )
+                # Keep the action and disclaimer in one sentence.
+                sentence3 = (
+                    f"Recommended action: {str(action).rstrip('.').lower()}; "
+                    "predictions are experimental and not clinically validated."
+                )
+                answer = f"{sentence1} {sentence2} {sentence3}"
             atomic_json_write(
                 result_path,
                 {
