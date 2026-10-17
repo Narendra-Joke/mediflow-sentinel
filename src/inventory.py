@@ -18,25 +18,40 @@ class Inventory:
             raise ValueError("Stock and daily usage cannot be negative")
 
         if self.safety_stock < 0 or self.incoming_stock < 0:
-            raise ValueError("Safety stock and incoming stock cannot be negative")
+            raise ValueError(
+                "Safety stock and incoming stock cannot be negative"
+            )
 
         if self.delivery_delay_days < 0:
             raise ValueError("Delivery delay cannot be negative")
 
         if self.daily_usage == 0:
             days_remaining = None
+            projected_days = None
         else:
             days_remaining = self.stock / self.daily_usage
 
+            # A shipment arriving too late cannot prevent stockout.
+            if days_remaining <= self.delivery_delay_days:
+                projected_days = days_remaining
+            else:
+                projected_days = (
+                    self.stock + self.incoming_stock
+                ) / self.daily_usage
+
         effective_days = (
-            days_remaining if days_remaining is not None else float("inf")
+            days_remaining
+            if days_remaining is not None
+            else float("inf")
         )
 
         if effective_days <= self.delivery_delay_days:
             risk = "CRITICAL"
-        elif self.stock <= self.safety_stock or effective_days <= 3:
+        elif self.stock <= self.safety_stock:
             risk = "HIGH"
-        elif effective_days <= 7:
+        elif projected_days is not None and projected_days <= 3:
+            risk = "HIGH"
+        elif projected_days is not None and projected_days <= 7:
             risk = "MEDIUM"
         else:
             risk = "LOW"
@@ -46,6 +61,11 @@ class Inventory:
             "days_until_stockout": (
                 round(days_remaining, 2)
                 if days_remaining is not None
+                else None
+            ),
+            "projected_days_until_stockout": (
+                round(projected_days, 2)
+                if projected_days is not None
                 else None
             ),
             "risk": risk,

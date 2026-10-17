@@ -37,3 +37,35 @@ class TestInventoryRisk(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_on_time_incoming_stock_reduces_risk():
+    item = Inventory(
+        "TEST-G", "Medicine-G",
+        stock=20,
+        daily_usage=10,
+        safety_stock=5,
+        incoming_stock=100,
+        delivery_delay_days=1,
+    )
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "LOW"
+    assert result["days_until_stockout"] == 2.0
+
+
+def test_late_incoming_stock_does_not_hide_critical_risk():
+    item = Inventory(
+        "TEST-H", "Medicine-H",
+        stock=10,
+        daily_usage=10,
+        safety_stock=2,
+        incoming_stock=100,
+        delivery_delay_days=2,
+    )
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "CRITICAL"
+    assert result["days_until_stockout"] == 1.0

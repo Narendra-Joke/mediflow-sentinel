@@ -113,3 +113,24 @@ def test_negative_stock_is_rejected_by_api():
     response = client.post("/inventory/assess", json=payload)
 
     assert response.status_code == 422
+
+
+def test_incoming_stock_updates_projected_coverage():
+    payload = {
+        "facility_id": "TEST-API-G",
+        "medicine": "Medicine-G",
+        "stock": 20,
+        "daily_usage": 10,
+        "safety_stock": 5,
+        "incoming_stock": 100,
+        "delivery_delay_days": 1,
+    }
+
+    response = client.post("/inventory/assess", json=payload)
+
+    assert response.status_code == 200
+
+    result = response.json()
+    assert result["risk"] == "LOW"
+    assert result["days_until_stockout"] == 2.0
+    assert result["projected_days_until_stockout"] == 12.0
