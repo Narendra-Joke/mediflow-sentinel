@@ -1,14 +1,26 @@
 from datetime import datetime, timezone
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from src.audit import AuditLogger
 from src.inventory import Inventory
+from src.genai_jobs import get_explanation_status, submit_explanation
+from src.predictive import predict_stockout_probability, train_model
+
+@lru_cache(maxsize=1)
+def get_predictive_model():
+    return train_model()[0]
+
+PREDICTION_NOTE = (
+    "Experimental estimate trained on synthetic data; "
+    "not validated on real inventory data."
+)
 
 app = FastAPI(
     title="Mediflow Sentinel API",
@@ -37,6 +49,29 @@ class InventoryRequest(BaseModel):
         return value
 
 
+class GenAIExplanationRequest(BaseModel):
+    assessment: dict[str, Any]
+
+
+@app.post("/genai/explanations", status_code=202)
+def create_genai_explanation(payload: GenAIExplanationRequest):
+    job_id = submit_explanation(payload.assessment)
+    return {"job_id": job_id, "status": "pending"}
+
+
+@app.get("/genai/explanations/{job_id}")
+def read_genai_explanation(job_id: str):
+    try:
+        result = get_explanation_status(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="GenAI job not found")
+
+    return result
+
+
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
@@ -46,6 +81,18 @@ def health_check():
 def assess_inventory(payload: InventoryRequest):
     inventory = Inventory(**payload.model_dump())
     result = inventory.assess_risk()
+    probability = predict_stockout_probability(
+        get_predictive_model(),
+        stock=payload.stock,
+        daily_usage=payload.daily_usage,
+        safety_stock=payload.safety_stock,
+        incoming_stock=payload.incoming_stock,
+        delivery_delay_days=payload.delivery_delay_days,
+    )
+    result["predicted_stockout_probability_7_days"] = round(
+        probability, 4
+    )
+    result["prediction_note"] = PREDICTION_NOTE
 
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -64,6 +111,8 @@ def assess_inventory(payload: InventoryRequest):
             result["projected_days_until_stockout"]
         ),
         "risk": result["risk"],
+        "predicted_stockout_probability_7_days": round(probability, 4),
+        "prediction_note": PREDICTION_NOTE,
     }
     AuditLogger(AUDIT_LOG_PATH).record(event)
 

@@ -15,6 +15,16 @@ def isolate_audit_log(tmp_path, monkeypatch):
     )
 
 
+
+@pytest.fixture
+def isolate_genai_jobs(tmp_path, monkeypatch):
+    import src.genai_jobs as genai_jobs
+
+    monkeypatch.setattr(
+        genai_jobs, "JOB_DIR", tmp_path / "genai-jobs"
+    )
+
+
 def test_health_endpoint():
     response = client.get("/health")
 
@@ -306,3 +316,66 @@ def test_manual_assessment_is_recorded_not_as_transition():
     transitions = client.get("/events/transitions")
     assert transitions.status_code == 200
     assert transitions.json()["count"] == 0
+
+
+def test_genai_submission_creates_pending_job(isolate_genai_jobs):
+    response = client.post(
+        "/genai/explanations",
+        json={"assessment": {"risk": "HIGH", "medicine": "TestMedicine"}},
+    )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "pending"
+    assert len(data["job_id"]) == 32
+
+    import src.genai_jobs as genai_jobs
+    request_file = genai_jobs.JOB_DIR / f"request_{data['job_id']}.json"
+    assert request_file.is_file()
+
+
+def test_genai_job_pending_status(isolate_genai_jobs):
+    submission = client.post(
+        "/genai/explanations",
+        json={"assessment": {"risk": "HIGH"}},
+    )
+    job_id = submission.json()["job_id"]
+
+    response = client.get(f"/genai/explanations/{job_id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+
+
+def test_genai_job_completed_status(isolate_genai_jobs):
+    import json
+    import src.genai_jobs as genai_jobs
+
+    job_id = "a" * 32
+    genai_jobs.JOB_DIR.mkdir(parents=True, exist_ok=True)
+    result = {
+        "job_id": job_id,
+        "status": "completed",
+        "answer": "Inventory risk is high.",
+    }
+    (genai_jobs.JOB_DIR / f"result_{job_id}.json").write_text(
+        json.dumps(result), encoding="utf-8"
+    )
+
+    response = client.get(f"/genai/explanations/{job_id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["answer"] == "Inventory risk is high."
+
+
+def test_genai_job_rejects_invalid_id():
+    response = client.get("/genai/explanations/not-a-valid-id")
+
+    assert response.status_code == 400
+
+
+def test_genai_job_returns_404_when_unknown(isolate_genai_jobs):
+    response = client.get(f"/genai/explanations/{'b' * 32}")
+
+    assert response.status_code == 404
