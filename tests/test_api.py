@@ -134,3 +134,129 @@ def test_incoming_stock_updates_projected_coverage():
     assert result["risk"] == "LOW"
     assert result["days_until_stockout"] == 2.0
     assert result["projected_days_until_stockout"] == 12.0
+
+
+def test_events_endpoint_returns_newest_first(tmp_path, monkeypatch):
+    import json
+    import src.api as api
+
+    log_path = tmp_path / "events.jsonl"
+    events = [
+        {
+            "event_type": "MEDICINE_DISPENSED",
+            "facility_id": "CLINIC-A",
+            "medicine": "Amoxicillin",
+            "simulated_day": 1,
+        },
+        {
+            "event_type": "RISK_TRANSITION",
+            "facility_id": "CLINIC-A",
+            "medicine": "Amoxicillin",
+            "previous_risk": "HIGH",
+            "risk": "CRITICAL",
+            "simulated_day": 2,
+        },
+    ]
+    log_path.write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "AUDIT_LOG_PATH", log_path)
+
+    response = client.get("/events")
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["count"] == 2
+    assert result["events"][0]["simulated_day"] == 2
+    assert result["events"][1]["simulated_day"] == 1
+
+
+def test_transition_endpoint_filters_by_facility_and_medicine(
+    tmp_path, monkeypatch
+):
+    import json
+    import src.api as api
+
+    log_path = tmp_path / "events.jsonl"
+    events = [
+        {
+            "event_type": "RISK_TRANSITION",
+            "facility_id": "CLINIC-A",
+            "medicine": "Amoxicillin",
+            "previous_risk": "HIGH",
+            "risk": "CRITICAL",
+        },
+        {
+            "event_type": "RISK_TRANSITION",
+            "facility_id": "CLINIC-B",
+            "medicine": "Paracetamol",
+            "previous_risk": "LOW",
+            "risk": "MEDIUM",
+        },
+        {
+            "event_type": "MEDICINE_DISPENSED",
+            "facility_id": "CLINIC-A",
+            "medicine": "Amoxicillin",
+        },
+    ]
+    log_path.write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "AUDIT_LOG_PATH", log_path)
+
+    response = client.get(
+        "/events/transitions",
+        params={
+            "facility_id": "CLINIC-A",
+            "medicine": "Amoxicillin",
+        },
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["count"] == 1
+    assert result["events"][0]["risk"] == "CRITICAL"
+
+
+def test_events_endpoint_respects_limit(tmp_path, monkeypatch):
+    import json
+    import src.api as api
+
+    log_path = tmp_path / "events.jsonl"
+    events = [
+        {"event_type": "TEST", "simulated_day": day}
+        for day in range(1, 4)
+    ]
+    log_path.write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "AUDIT_LOG_PATH", log_path)
+
+    response = client.get("/events", params={"limit": 2})
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["count"] == 2
+    assert [event["simulated_day"] for event in result["events"]] == [3, 2]
+
+
+def test_events_endpoint_handles_missing_log(tmp_path, monkeypatch):
+    import src.api as api
+
+    monkeypatch.setattr(
+        api, "AUDIT_LOG_PATH", tmp_path / "missing.jsonl"
+    )
+
+    response = client.get("/events")
+
+    assert response.status_code == 200
+    assert response.json() == {"count": 0, "events": []}
+
+
+def test_events_endpoint_rejects_invalid_limit():
+    response = client.get("/events", params={"limit": 0})
+
+    assert response.status_code == 422
