@@ -47,14 +47,44 @@ class Inventory:
 
         if effective_days <= self.delivery_delay_days:
             risk = "CRITICAL"
+            risk_reason = (
+                "Current stock may run out before the delivery delay ends."
+            )
+            recommended_action = (
+                "Urgently review expedited replenishment or alternative supply."
+            )
         elif self.stock <= self.safety_stock:
             risk = "HIGH"
+            risk_reason = (
+                "Current stock is at or below the safety-stock threshold."
+            )
+            recommended_action = (
+                "Review replenishment needs and confirm the delivery plan."
+            )
         elif projected_days is not None and projected_days <= 3:
             risk = "HIGH"
+            risk_reason = (
+                "Projected stock coverage is 3 days or less."
+            )
+            recommended_action = (
+                "Prioritize replenishment planning."
+            )
         elif projected_days is not None and projected_days <= 7:
             risk = "MEDIUM"
+            risk_reason = (
+                "Projected stock coverage is 7 days or less."
+            )
+            recommended_action = (
+                "Monitor stock and confirm the delivery schedule."
+            )
         else:
             risk = "LOW"
+            risk_reason = (
+                "No higher-risk condition was triggered by the current rules."
+            )
+            recommended_action = (
+                "Continue routine inventory monitoring."
+            )
 
         return {
             **asdict(self),
@@ -69,6 +99,8 @@ class Inventory:
                 else None
             ),
             "risk": risk,
+            "risk_reason": risk_reason,
+            "recommended_action": recommended_action,
             "assessed_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -96,6 +128,9 @@ def main() -> None:
             f"Stockout: {days_text:12} | "
             f"Risk: {result['risk']}"
         )
+        print(f"  Reason: {result['risk_reason']}")
+        print(f"  Recommended action: {result['recommended_action']}")
+        print("-" * 55)
 
 
 if __name__ == "__main__":

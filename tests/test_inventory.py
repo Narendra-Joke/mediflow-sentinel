@@ -69,3 +69,53 @@ def test_late_incoming_stock_does_not_hide_critical_risk():
 
     assert result["risk"] == "CRITICAL"
     assert result["days_until_stockout"] == 1.0
+
+
+def test_critical_risk_has_explanation_and_action():
+    item = Inventory("CLINIC-A", "Amoxicillin", 10, 10, 2, 100, 2)
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "CRITICAL"
+    assert "before the delivery delay ends" in result["risk_reason"]
+    assert "Urgently review" in result["recommended_action"]
+
+
+def test_safety_stock_high_risk_has_explanation():
+    item = Inventory("CLINIC-A", "Amoxicillin", 5, 1, 10)
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "HIGH"
+    assert "safety-stock threshold" in result["risk_reason"]
+    assert result["recommended_action"]
+
+
+def test_projected_high_risk_has_explanation():
+    item = Inventory("CLINIC-A", "Amoxicillin", 40, 20, 10)
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "HIGH"
+    assert "3 days or less" in result["risk_reason"]
+    assert result["recommended_action"]
+
+
+def test_medium_risk_has_explanation():
+    item = Inventory("CLINIC-A", "Amoxicillin", 50, 10, 5)
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "MEDIUM"
+    assert "7 days or less" in result["risk_reason"]
+    assert result["recommended_action"]
+
+
+def test_low_risk_has_explanation():
+    item = Inventory("CLINIC-A", "Amoxicillin", 100, 10, 5)
+
+    result = item.assess_risk()
+
+    assert result["risk"] == "LOW"
+    assert result["risk_reason"]
+    assert result["recommended_action"]
