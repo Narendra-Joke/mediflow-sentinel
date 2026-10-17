@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from src.inventory import Inventory
+from src.audit import AuditLogger
 
 
 def make_event(tick, event_type, quantity, inventory, pending_delivery):
@@ -41,6 +42,7 @@ def make_event(tick, event_type, quantity, inventory, pending_delivery):
 
 def main():
     random.seed(42)
+    audit = AuditLogger()
 
     inventory = Inventory(
         facility_id="CLINIC-A",
@@ -79,6 +81,7 @@ def main():
                         inventory,
                         pending_delivery,
                     )
+                    audit.record(event)
                     print(json.dumps(event), flush=True)
 
             # Dispense medicine for this simulated day.
@@ -100,6 +103,7 @@ def main():
                 inventory,
                 pending_delivery,
             )
+            audit.record(event)
             print(json.dumps(event), flush=True)
 
             # Schedule a new delivery only if no shipment is pending.
@@ -119,6 +123,7 @@ def main():
                     inventory,
                     pending_delivery,
                 )
+                audit.record(event)
                 print(json.dumps(event), flush=True)
 
             time.sleep(2)
