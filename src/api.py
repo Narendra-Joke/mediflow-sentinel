@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from src.inventory import Inventory
@@ -110,3 +111,14 @@ def get_risk_transitions(
     events = events[:limit]
 
     return {"count": len(events), "events": events}
+
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard():
+    dashboard_file = (
+        Path(__file__).resolve().parent.parent
+        / "static"
+        / "dashboard.html"
+    )
+    return FileResponse(dashboard_file)
