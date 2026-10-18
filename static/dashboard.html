@@ -1,0 +1,643 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mediflow Sentinel | Inventory Intelligence</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --panel: #121c2e;
+  --border: #26344a;
+  --text: #e8eef8;
+  --muted: #91a2bb;
+  --accent: #61d5c5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; flex-wrap: wrap;
+  padding: 22px 5%; border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; gap: 12px; align-items: center; }
+.logo {
+  display: grid; place-items: center; width: 42px; height: 42px;
+  border-radius: 12px; background: #173c43; color: var(--accent);
+  font-size: 22px; font-weight: 800;
+}
+h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
+.subtitle { color: var(--muted); font-size: 12px; }
+button {
+  background: var(--accent); color: #06221f; border: 0;
+  border-radius: 8px; padding: 10px 15px; font-weight: 750;
+  cursor: pointer;
+}
+main { max-width: 1440px; margin: auto; padding: 28px 5%; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: 1.8px; }
+h2 { margin: 4px 0 5px; font-size: 25px; }
+.intro { color: var(--muted); margin: 0 0 24px; }
+.status { color: var(--muted); font-size: 12px; }
+.cards {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px; margin: 22px 0;
+}
+.card, .panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 13px; padding: 19px;
+}
+.card-label { color: var(--muted); font-size: 12px; }
+.number { font-size: 32px; font-weight: 750; margin-top: 9px; }
+.card-note { color: var(--muted); font-size: 11px; }
+.critical { color: #ff737d; }
+.high { color: #ffb66e; }
+.medium { color: #f5d477; }
+.low { color: #61d5a4; }
+.columns { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 16px; }
+.panel { min-width: 0; margin-bottom: 16px; }
+.panel-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px; }
+h3 { margin: 0; font-size: 15px; }
+.pill {
+  display: inline-block; padding: 3px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 750; background: #26344a;
+}
+.pill.critical { background:#48242e; }
+.pill.high { background:#493322; }
+.pill.medium { background:#453d25; }
+.pill.low { background:#173c34; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; white-space: nowrap; font-size: 12px; }
+th { color: var(--muted); font-weight: 600; text-align: left; }
+th, td { padding: 12px 9px; border-bottom: 1px solid var(--border); }
+tbody tr:last-child td { border-bottom: 0; }
+td { max-width: 260px; }
+.muted { color: var(--muted); }
+.event {
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.event:last-child { border-bottom: 0; }
+.event-title { font-weight: 700; }
+.event-detail { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.empty { color: var(--muted); padding: 22px 0; }
+.error { color: #ff9299; }
+footer { color: var(--muted); text-align: center; padding: 20px; font-size: 11px; }
+
+/* Interactive inventory assessment */
+.assessment-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.assessment-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.assessment-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b1424;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.assessment-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(97 213 197 / 12%);
+}
+
+.assessment-form button {
+  min-height: 42px;
+  padding: 10px 18px;
+  white-space: nowrap;
+}
+
+button {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+#assessmentMessage {
+  font-size: 13px;
+}
+
+#assessmentResult .event {
+  margin-top: 8px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #0d1728;
+}
+
+#assessmentResult .event-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+}
+
+#assessmentResult p {
+  margin: 14px 0 6px;
+}
+
+#assessmentResult p + p {
+  margin-top: 4px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1050px) {
+  .assessment-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .assessment-form {
+    grid-template-columns: 1fr;
+  }
+
+  #assessmentResult .event {
+    padding: 15px;
+  }
+}
+
+@media(max-width:850px) {
+  .cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .columns { grid-template-columns: 1fr; }
+}
+@media(max-width:430px) {
+  main { padding: 22px 4%; }
+  .cards { gap: 9px; }
+  .card { padding: 13px; }
+  .number { font-size: 27px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">M+</div>
+    <div>
+      <h1>Mediflow Sentinel</h1>
+      <div class="subtitle">Medicine Inventory Intelligence</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <span id="apiStatus" class="status">Checking API...</span>
+    <button id="refresh">↻ Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div class="eyebrow">OPERATIONS OVERVIEW</div>
+  <h2>Inventory risk dashboard</h2>
+  <p class="intro">Monitor recorded medicine risks, stockout projections and risk transitions.</p>
+  <div id="updated" class="status">Waiting for first refresh...</div>
+
+  <section class="cards">
+    <div class="card">
+      <div class="card-label">Critical</div>
+      <div class="number critical" id="criticalCount">—</div>
+      <div class="card-note">Latest recorded medicine risks</div>
+    </div>
+    <div class="card">
+      <div class="card-label">High</div>
+      <div class="number high" id="highCount">—</div>
+      <div class="card-note">Needs close attention</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Medium</div>
+      <div class="number medium" id="mediumCount">—</div>
+      <div class="card-note">Monitor inventory</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Low</div>
+      <div class="number low" id="lowCount">—</div>
+      <div class="card-note">Lower recorded risk</div>
+    </div>
+  </section>
+
+  <section class="columns">
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Latest medicine status</h3>
+          <span class="pill" id="medicineCount">0 records</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Facility / medicine</th><th>Stock</th>
+              <th>Stockout (days)</th><th>Risk</th>
+            </tr></thead>
+            <tbody id="medicineRows">
+              <tr><td colspan="4" class="empty">Loading audit events...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="status" style="margin-top:12px">
+          Based on the latest available event for each facility and medicine.
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Recent risk transitions</h3>
+          <span class="pill" id="transitionCount">0 events</span>
+        </div>
+        <div id="transitions"><div class="empty">Loading transitions...</div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head"><h3>System health</h3></div>
+        <p id="healthText" class="muted">Checking health endpoint...</p>
+        <div class="status">API endpoint: <code>/health</code></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Audit summary</h3></div>
+        <div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0">
+          <span class="muted">Events loaded</span><strong id="eventCount">—</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0">
+          <span class="muted">Risk transitions</span><strong id="transitionTotal">—</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0">
+          <span class="muted">Facilities observed</span><strong id="facilityCount">—</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0">
+          <span class="muted">Medicines observed</span><strong id="uniqueMedicineCount">—</strong>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>About this dashboard</h3>
+        <p class="muted">This view summarizes persisted inventory audit events, including simulator activity and manual inventory assessments. Counts reflect the latest recorded event per facility and medicine.</p>
+      </div>
+    </div>
+  </section>
+
+<section class="panel" style="margin-top: 20px;">
+  <div class="panel-head">
+    <h3>Interactive Inventory Assessment</h3>
+    <span class="muted">Assess medicine stock risk</span>
+  </div>
+
+  <form id="assessmentForm" class="assessment-form">
+    <label>
+      Facility ID
+      <input name="facility_id" value="CLINIC-A" required maxlength="100">
+    </label>
+
+    <label>
+      Medicine
+      <input name="medicine" value="Amoxicillin" required maxlength="100">
+    </label>
+
+    <label>
+      Current stock
+      <input name="stock" type="number" min="0" step="1" value="61" required>
+    </label>
+
+    <label>
+      Daily usage
+      <input name="daily_usage" type="number" min="0" step="any" value="10" required>
+    </label>
+
+    <label>
+      Safety stock
+      <input name="safety_stock" type="number" min="0" step="1" value="20" required>
+    </label>
+
+    <label>
+      Incoming stock
+      <input name="incoming_stock" type="number" min="0" step="1" value="0" required>
+    </label>
+
+    <label>
+      Delivery delay (days)
+      <input name="delivery_delay_days" type="number" min="0" step="any" value="2" required>
+    </label>
+
+    <button id="assessButton" type="submit">Assess Risk</button>
+  </form>
+
+  <div id="assessmentMessage" role="status" aria-live="polite" style="margin-top: 14px;"></div>
+  <div id="assessmentResult" style="margin-top: 14px;"></div>
+</section>
+</main>
+<footer>Mediflow Sentinel · Inventory monitoring and explainable risk insights</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function riskClass(risk) {
+  return String(risk || "").toLowerCase();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "—").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : "—";
+}
+
+function formatTime(value) {
+  if (!value) return "Time unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? escapeHtml(value) : date.toLocaleString();
+}
+
+async function getJson(path) {
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+  return response.json();
+}
+
+
+$("assessmentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const button = $("assessButton");
+  const message = $("assessmentMessage");
+  const resultBox = $("assessmentResult");
+
+  if (!form.reportValidity()) return;
+
+  const formData = new FormData(form);
+  const payload = {
+    facility_id: String(formData.get("facility_id")).trim(),
+    medicine: String(formData.get("medicine")).trim(),
+    stock: Number(formData.get("stock")),
+    daily_usage: Number(formData.get("daily_usage")),
+    safety_stock: Number(formData.get("safety_stock")),
+    incoming_stock: Number(formData.get("incoming_stock")),
+    delivery_delay_days: Number(formData.get("delivery_delay_days"))
+  };
+
+  if (!payload.facility_id || !payload.medicine) {
+    message.textContent = "Facility ID and medicine are required.";
+    message.className = "error";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Assessing...";
+  message.textContent = "Calculating inventory risk...";
+  message.className = "muted";
+  resultBox.innerHTML = "";
+
+  try {
+    const response = await fetch("/inventory/assess", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const detail = Array.isArray(data.detail)
+        ? data.detail.map(item => item.msg).join("; ")
+        : data.detail || `HTTP ${response.status}`;
+
+      throw new Error(detail);
+    }
+
+    const risk = String(data.risk || "UNKNOWN").toUpperCase();
+    const currentDays = data.days_until_stockout;
+    const projectedDays = data.projected_days_until_stockout;
+
+    message.textContent = "Assessment completed successfully.";
+    message.className = "low";
+
+    resultBox.innerHTML = `
+      <div class="event">
+        <div class="event-title">
+          ${escapeHtml(data.medicine)} ·
+          <span class="pill ${riskClass(risk)}">${escapeHtml(risk)}</span>
+        </div>
+
+        <div class="event-detail">
+          Facility: ${escapeHtml(data.facility_id)}
+        </div>
+
+        <div class="event-detail">
+          Current stock: ${formatNumber(data.stock)}
+          · Daily usage: ${formatNumber(data.daily_usage)}
+        </div>
+
+        <div class="event-detail">
+          Current stockout estimate:
+          ${formatNumber(currentDays)} days
+        </div>
+
+        <div class="event-detail">
+          Projected stockout after incoming stock:
+          ${formatNumber(projectedDays)} days
+        </div>
+
+        <p><strong>Rule-based risk explanation</strong></p>
+        <p>${escapeHtml(data.risk_reason)}</p>
+
+        <p><strong>Recommended action</strong></p>
+        <p>${escapeHtml(data.recommended_action)}</p>
+
+        <div class="event-detail">
+          Assessed at: ${formatTime(data.assessed_at)}
+        </div>
+        <p><strong>AI-generated explanation (Granite)</strong></p>
+        <p id="genaiExplanation" class="muted" aria-live="polite">
+          Preparing AI explanation...
+        </p>
+
+      </div>
+    `;
+
+    // GenAI is supplemental: never replace or alter the structured assessment.
+    const aiBox = $("genaiExplanation");
+    try {
+      const jobResponse = await fetch("/genai/explanations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessment: data })
+      });
+      if (!jobResponse.ok) {
+        throw new Error(`Could not start explanation (HTTP ${jobResponse.status})`);
+      }
+
+      const job = await jobResponse.json();
+      const deadline = Date.now() + 5 * 60 * 1000;
+      let finished = false;
+
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        const statusResponse = await fetch(
+          `/genai/explanations/${encodeURIComponent(job.job_id)}`,
+          { cache: "no-store" }
+        );
+        if (!statusResponse.ok) {
+          throw new Error(`Could not retrieve explanation (HTTP ${statusResponse.status})`);
+        }
+
+        const status = await statusResponse.json();
+        if (status.status === "completed") {
+          aiBox.textContent = status.answer || "No explanation was returned.";
+          aiBox.className = "";
+          finished = true;
+          break;
+        }
+        if (status.status === "failed") {
+          throw new Error(status.error || "The explanation job failed.");
+        }
+        aiBox.textContent = "Granite is generating the explanation. This may take a few minutes...";
+      }
+
+      if (!finished) {
+        aiBox.textContent = "The AI explanation is taking longer than expected. The inventory assessment above is available.";
+      }
+    } catch (aiError) {
+      aiBox.textContent = `AI explanation unavailable: ${aiError.message}. The inventory assessment above is still valid.`;
+      aiBox.className = "muted";
+    }
+  } catch (error) {
+    message.textContent = `Assessment failed: ${error.message}`;
+    message.className = "error";
+    resultBox.innerHTML = "";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Assess Risk";
+  }
+});
+
+async function refreshDashboard() {
+  $("refresh").disabled = true;
+  $("apiStatus").textContent = "Refreshing...";
+
+  try {
+    const [health, eventResult, transitionResult] = await Promise.all([
+      getJson("/health"),
+      getJson("/events?limit=500"),
+      getJson("/events/transitions?limit=100")
+    ]);
+
+    $("apiStatus").textContent =
+      health.status === "healthy" ? "● API healthy" : "● API response received";
+    $("healthText").textContent = JSON.stringify(health);
+    $("healthText").className = "low";
+
+    const events = Array.isArray(eventResult.events) ? eventResult.events : [];
+    const transitions = Array.isArray(transitionResult.events)
+      ? transitionResult.events : [];
+
+    // Events arrive newest first. Keep the newest event for each facility/medicine.
+    const latest = new Map();
+    for (const event of events) {
+      if (!event.facility_id || !event.medicine) continue;
+      const key = `${event.facility_id}\u0000${event.medicine}`;
+      if (!latest.has(key)) latest.set(key, event);
+    }
+
+    const rows = [...latest.values()];
+    const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    for (const event of rows) {
+      const risk = String(event.risk || "").toUpperCase();
+      if (Object.hasOwn(counts, risk)) counts[risk]++;
+    }
+
+    for (const risk of Object.keys(counts)) {
+      $(risk.toLowerCase() + "Count").textContent = counts[risk];
+    }
+
+    $("medicineCount").textContent = `${rows.length} records`;
+    $("eventCount").textContent = eventResult.count ?? events.length;
+    $("transitionCount").textContent = `${transitions.length} events`;
+    $("transitionTotal").textContent = transitionResult.count ?? transitions.length;
+    $("facilityCount").textContent =
+      new Set(rows.map(event => event.facility_id)).size;
+    $("uniqueMedicineCount").textContent =
+      new Set(rows.map(event => event.medicine)).size;
+
+    $("medicineRows").innerHTML = rows.length ? rows.map(event => {
+      const risk = String(event.risk || "UNKNOWN").toUpperCase();
+      const days = event.projected_days_until_stockout ??
+                   event.days_until_stockout;
+      return `<tr>
+        <td><strong>${escapeHtml(event.medicine)}</strong>
+          <div class="muted">${escapeHtml(event.facility_id)}</div></td>
+        <td>${formatNumber(event.current_stock)}</td>
+        <td>${formatNumber(days)}</td>
+        <td><span class="pill ${riskClass(risk)}">${escapeHtml(risk)}</span></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="4" class="empty">
+      No inventory events found in the audit log.</td></tr>`;
+
+    $("transitions").innerHTML = transitions.length ? transitions
+      .slice(0, 10).map(event => `
+        <div class="event">
+          <div class="event-title">
+            ${escapeHtml(event.medicine)} ·
+            <span class="${riskClass(event.risk)}">${escapeHtml(event.previous_risk)} → ${escapeHtml(event.risk)}</span>
+          </div>
+          <div class="event-detail">${escapeHtml(event.facility_id)} ·
+            ${formatTime(event.timestamp)}</div>
+          <div class="event-detail">Stock: ${formatNumber(event.current_stock)}
+            · Projected stockout: ${formatNumber(event.projected_days_until_stockout)} days</div>
+        </div>`).join("") : `<div class="empty">
+          No risk transitions recorded yet.</div>`;
+
+    $("updated").textContent = "Last refreshed: " + new Date().toLocaleString();
+  } catch (error) {
+    $("apiStatus").textContent = "● API unavailable";
+    $("healthText").textContent = error.message +
+      ". Confirm the API is running and the audit endpoints are reachable.";
+    $("healthText").className = "error";
+    $("updated").textContent = "Refresh failed. Try again after checking the API.";
+  } finally {
+    $("refresh").disabled = false;
+  }
+}
+
+$("refresh").addEventListener("click", refreshDashboard);
+refreshDashboard();
+setInterval(refreshDashboard, 15000);
+</script>
+</body>
+</html>

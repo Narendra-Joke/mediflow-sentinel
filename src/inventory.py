@@ -18,28 +18,73 @@ class Inventory:
             raise ValueError("Stock and daily usage cannot be negative")
 
         if self.safety_stock < 0 or self.incoming_stock < 0:
-            raise ValueError("Safety stock and incoming stock cannot be negative")
+            raise ValueError(
+                "Safety stock and incoming stock cannot be negative"
+            )
 
         if self.delivery_delay_days < 0:
             raise ValueError("Delivery delay cannot be negative")
 
         if self.daily_usage == 0:
             days_remaining = None
+            projected_days = None
         else:
             days_remaining = self.stock / self.daily_usage
 
+            # A shipment arriving too late cannot prevent stockout.
+            if days_remaining <= self.delivery_delay_days:
+                projected_days = days_remaining
+            else:
+                projected_days = (
+                    self.stock + self.incoming_stock
+                ) / self.daily_usage
+
         effective_days = (
-            days_remaining if days_remaining is not None else float("inf")
+            days_remaining
+            if days_remaining is not None
+            else float("inf")
         )
 
         if effective_days <= self.delivery_delay_days:
             risk = "CRITICAL"
-        elif self.stock <= self.safety_stock or effective_days <= 3:
+            risk_reason = (
+                "Current stock may run out before the delivery delay ends."
+            )
+            recommended_action = (
+                "Urgently review expedited replenishment or alternative supply."
+            )
+        elif self.stock <= self.safety_stock:
             risk = "HIGH"
-        elif effective_days <= 7:
+            risk_reason = (
+                "Current stock is at or below the safety-stock threshold."
+            )
+            recommended_action = (
+                "Review replenishment needs and confirm the delivery plan."
+            )
+        elif projected_days is not None and projected_days <= 3:
+            risk = "HIGH"
+            risk_reason = (
+                "Projected stock coverage is 3 days or less."
+            )
+            recommended_action = (
+                "Prioritize replenishment planning."
+            )
+        elif projected_days is not None and projected_days <= 7:
             risk = "MEDIUM"
+            risk_reason = (
+                "Projected stock coverage is 7 days or less."
+            )
+            recommended_action = (
+                "Monitor stock and confirm the delivery schedule."
+            )
         else:
             risk = "LOW"
+            risk_reason = (
+                "No higher-risk condition was triggered by the current rules."
+            )
+            recommended_action = (
+                "Continue routine inventory monitoring."
+            )
 
         return {
             **asdict(self),
@@ -48,7 +93,14 @@ class Inventory:
                 if days_remaining is not None
                 else None
             ),
+            "projected_days_until_stockout": (
+                round(projected_days, 2)
+                if projected_days is not None
+                else None
+            ),
             "risk": risk,
+            "risk_reason": risk_reason,
+            "recommended_action": recommended_action,
             "assessed_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -76,6 +128,9 @@ def main() -> None:
             f"Stockout: {days_text:12} | "
             f"Risk: {result['risk']}"
         )
+        print(f"  Reason: {result['risk_reason']}")
+        print(f"  Recommended action: {result['recommended_action']}")
+        print("-" * 55)
 
 
 if __name__ == "__main__":
