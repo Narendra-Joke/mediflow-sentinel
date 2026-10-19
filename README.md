@@ -7,7 +7,7 @@ It combines rule-based inventory assessment, machine-learning stockout predictio
 
 > **IBM Z Datathon 2026 | LinuxONE | Predictive AI + Generative AI**
 
-**Project repository:** https://github.com/Narendra-Joke/mediflow-sentinel/tree/feature/delivery-aware-risk
+**Project repository:** https://github.com/Narendra-Joke/mediflow-sentinel/
 
 ---
 
